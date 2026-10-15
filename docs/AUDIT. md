@@ -1,0 +1,91 @@
+# Rapport d'audit — AviatorScope 3.0.0
+
+Date : 15/10/2026 · Périmètre : code Dart (lib/, test/), workflow CI, scripts,
+documentation, conformité au cahier des charges v3.0 (20 sections).
+
+## 1. Méthode et limites de l'audit
+
+Relecture statique complète et contrôles automatisés simples (équilibre des
+délimiteurs, imports inutilisés, usages de `ref.watch` hors `build`, API
+dépréciées).
+
+**Non vérifié** (aucun SDK Flutter/Dart disponible dans l'environnement de
+production du dossier) : `flutter pub get`, `flutter analyze`, `flutter test`,
+`flutter build apk`, exécution sur appareil. Ce rapport ne constitue donc pas
+une preuve de compilation : le premier passage de la CI est l'étape de
+validation (voir docs/TESTING.md).
+
+## 2. Conformité au cahier des charges
+
+| § | Exigence | Statut | Remarque |
+|---|---|---|---|
+| 1 | Pas de prédiction ni de taux de confiance inventés | Conforme | Textes d'avertissement partout ; aucune valeur fixe |
+| 2 | Pile technique imposée | Conforme | Riverpod, go_router, fl_chart, ML Kit, sqflite, csv ; `crypto` retenu pour les hachages |
+| 3 | Identité visuelle | Conforme | Palette exacte, Material 3, verre subtil, signature affichée ; police système (voir §5) |
+| 4 | Architecture modulaire | Conforme (adaptée) | `data/` seulement là où utile ; providers partagés dans `shared/` |
+| 5 | Navigation 5 sections, état conservé | Conforme | `StatefulShellRoute.indexedStack`, rail ≥ 720 dp |
+| 6 | Dashboard | Conforme | Tous les indicateurs, graphique 20/50/100, période, état vide |
+| 7 | Historique | Conforme | CRUD, recherche, tri, filtre, doublons, CSV, confirmations |
+| 8 | OCR | Conforme | Local, confirmation obligatoire, 6 types d'avertissements |
+| 9 | Prédictions & Estimations (A→G) | Conforme | Sections A à G présentes |
+| 10 | Moteur statistique + tests | Conforme | Cas limites couverts par les tests |
+| 11 | Probabilités théoriques | Conforme | « Probabilité théorique non configurée. » |
+| 12 | Provably Fair | Conforme (partiel voulu) | Hash uniquement ; multiplicateur jamais « vérifié » |
+| 13 | BetPawa | Conforme | Aucune connexion, aucun scraping |
+| 14 | Stockage / confidentialité | Conforme | SQLite local, export, suppression totale |
+| 15 | CSV | Conforme | Format documenté, résumé avant import, pas d'écrasement |
+| 16 | Paramètres | Conforme | Thème/langue fixes affichés en information |
+| 17 | GitHub Actions | Conforme, non exécuté | Nom d'artifact identique au README |
+| 18 | Qualité et tests | Partiel | Tests écrits ; exécution non réalisée ici |
+| 19 | README | Conforme | + dossier `docs/` |
+| 20 | Livrables | Partiel | `android/` généré par script (voir §5) |
+
+## 3. Anomalies trouvées et corrigées pendant l'audit
+
+| # | Sévérité | Constat | Correction |
+|---|---|---|---|
+| A1 | Moyenne | Pendant le chargement ou une erreur, l'écran Historique n'avait ni titre ni barre | `ResultsView.fallbackTitle` |
+| A2 | Basse | Effet de pression (ripple) invisible sur les cartes de l'historique (masqué par la décoration) | `Material` transparent autour de l'`InkWell` |
+| A3 | Basse | Paramètre inutilisé dans le Dashboard | Supprimé |
+| A4 | Moyenne | Écran d'import : chaîne avec guillemets imbriqués fragile | Réécrite avec variable intermédiaire |
+| A5 | Moyenne | Création des dossiers via accolades `{a,b}` dans un shell sans extension : arborescence erronée, fichiers manquants | Dossiers recréés, fichiers réécrits, comptage vérifié |
+
+## 4. Risques résiduels (à valider à la première compilation)
+
+1. **Versions de dépendances** : bornes caret choisies sans résolution réelle
+   (`pubspec.lock` absent). Un conflit avec la dernière version stable de Flutter
+   est possible ; ajuster les bornes puis commiter le `pubspec.lock`.
+2. **Gradle / AGP** : `android/` est généré à la volée. Un plugin plus ancien
+   (ex. `file_picker` 8.x) peut exiger une mise à jour mineure.
+3. **API fl_chart 0.69** (`getTooltipColor`, `HorizontalLineLabel`) : à confirmer
+   par `flutter analyze`.
+4. **API csv 6** (`shouldParseNumbers`) et **API ML Kit 0.14** : idem.
+5. **Formatage** : le code n'est pas passé par `dart format` ; la vérification
+   est non bloquante en CI jusqu'au premier formatage.
+6. **OCR réel** : la qualité dépend des captures ; les regex sont testées sur du
+   texte, pas sur de vraies sorties ML Kit.
+7. **Détection de chevauchement d'import** : heuristique (≥ 3 valeurs
+   identiques). Elle prévient et propose d'ignorer, sans jamais le faire en
+   silence.
+
+## 5. Décisions de conception à connaître
+
+- **Police** : système, avec chiffres tabulaires. Une police web (Fira) imposerait
+  un téléchargement réseau, contraire au principe « tout reste local ».
+- **`android/` non versionné dans le zip** : généré par `tool/bootstrap_android.sh`
+  pour correspondre à la version de Flutter installée.
+- **Ordre chronologique** = ordre d'insertion. L'import OCR demande l'ordre de
+  lecture de la capture pour enregistrer du plus ancien au plus récent.
+- **Valeurs limites** (≥ 1,00x, > 1000x « à vérifier ») : heuristiques de
+  validation de l'application, pas des règles officielles du jeu.
+- **Intervalle de Wilson** : choisi pour sa bonne tenue sur petits échantillons
+  et proportions extrêmes ; hypothèse d'indépendance affichée dans l'interface.
+
+## 6. Recommandations
+
+1. Lancer la CI, corriger les éventuelles erreurs, commiter `pubspec.lock`.
+2. Exécuter `dart format .` puis rendre le contrôle de formatage bloquant.
+3. Dérouler la checklist manuelle de docs/TESTING.md sur un vrai téléphone.
+4. Tester l'OCR sur 10 à 20 captures réelles et ajuster les avertissements.
+5. Avant toute diffusion : signature release, icône et nom définitifs, politique
+   de confidentialité.
